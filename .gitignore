@@ -1,0 +1,6 @@
+# 模块核心二进制（约 32MB，从官方 release 下载，不入库）
+Adguardhome/bin/AdGuardHome
+
+# 打包产物与临时目录
+*.zip
+.pack/

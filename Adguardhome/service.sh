@@ -36,10 +36,10 @@ if [ "$found_hosts" = true ]; then
     exit 1
 fi
 
-# 动态端口随机化
+# DNS端口随机化（WebUI端口固定为3000，故只需随机DNS端口）
 if ! pgrep "AdGuardHome"; then
-R1=$((30000+RANDOM%35536)); R2=$((30000+RANDOM%35536))
-sed -i "/^dns:/,/^[^[:space:]]/ s/^\([[:space:]]*port:\) [0-9]*/\1 $R1/; s/^\([[:space:]]*address:\) 127\.0\.0\.1:[0-9]*/\1 127.0.0.1:$R2/" "$BIN_DIR/AdGuardHome.yaml"
+R1=$((30000+RANDOM%35536))
+sed -i "/^dns:/,/^[^[:space:]]/ s/^\([[:space:]]*port:\) [0-9]*/\1 $R1/" "$BIN_DIR/AdGuardHome.yaml"
 sed -i "s/^redir_port=.*/redir_port=$R1/" "$SCRIPT_DIR/config.prop"
 
 # 启动AdGuardHome

@@ -9,7 +9,7 @@ http:
       - GET /dns-query/{ClientID}
       - POST /dns-query/{ClientID}
     insecure_enabled: false
-  address: 127.0.0.1:40251
+  address: 127.0.0.1:3000
   session_ttl: 30d
 users:
   - name: root
@@ -30,19 +30,17 @@ dns:
   ratelimit_whitelist: []
   refuse_any: true
   upstream_dns:
-    - https://1.12.12.12/dns-query
-    - https://120.53.53.53/dns-query
+    - 127.0.0.1:1451
   upstream_dns_file: ""
   bootstrap_dns:
-    - 180.184.1.1
-    - 180.184.2.2
-    - 2400:7fc0:849e:200::4
-    - 2404:c2c0:85d8:901::4
+    - 223.5.5.5
+    - 119.29.29.29
+    - 2400:3200::1
+    - '2402:4e00::'
   fallback_dns:
-    - https://101.226.4.6/dns-query
-    - https://218.30.118.6/dns-query
-    - https://123.125.81.6/dns-query
-  upstream_mode: load_balance
+    - https://223.5.5.5/dns-query
+    - https://1.12.12.12/dns-query
+  upstream_mode: parallel
   fastest_timeout: 1s
   allowed_clients: []
   disallowed_clients: []
@@ -53,11 +51,11 @@ dns:
   trusted_proxies:
     - 127.0.0.0/8
     - ::1/128
-  cache_enabled: true
+  cache_enabled: false
   cache_size: 52428800
   cache_ttl_min: 600
   cache_ttl_max: 3600
-  cache_optimistic: true
+  cache_optimistic: false
   cache_optimistic_answer_ttl: 30s
   cache_optimistic_max_age: 12h
   bogus_nxdomain: []
@@ -121,6 +119,10 @@ filters:
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_11.txt
     name: Malicious URL Blocklist (URLHaus)
     id: 1735560833
+  - enabled: true
+    url: https://github-hosts.tinsfox.com/hosts
+    name: Github Hosts
+    id: 1769996313
 whitelist_filters:
   - enabled: true
     url: https://ghfast.top/raw.githubusercontent.com/8680/GOODBYEADS/master/data/rules/allow.txt
@@ -1387,6 +1389,64 @@ user_rules:
   - '@@||log.dailygn.com^$important'
   - '#阻断ECH公钥链接防止流量绕过'
   - '||_https.*^$important'
+  - '#以下为广告归因与统计SDK域名'
+  - '||*.anythinktech.com^$important'
+  - '||*.appsflyersdk.com^$important'
+  - '||*.birdgesdk.com^$important'
+  - '||*.domob.cn^$important'
+  - '||*.duxiaoman.com^$important'
+  - '||*.medproad.com^$important'
+  - '||*.miaozhen.com^$important'
+  - '||*.mobrtb.com^$important'
+  - '||*.qchannel*.cn^$important'
+  - '||*.reachmax.cn^$important'
+  - '||*.tanx.com^$important'
+  - '||*.ugsdk.cn^$important'
+  - '||*.umeng.com^$important'
+  - '||adsdk.idmzj.com^$important'
+  - '||api.qttunion.com^$important'
+  - '||app.duxiaomanfintech.com^$important'
+  - '||dmugc-cn.domobcdn.com^$important'
+  - '||sdk1xyajs.data.kuiniuca.com^$important'
+  - '#以下为统计与日志上报域名'
+  - '||*.log.moji.com^$important'
+  - '||ad.api.moji.com^$important'
+  - '||ads.mojicdn.com^$important'
+  - '||analytics.oneplus.cn^$important'
+  - '||apm3.music.163.com^$important'
+  - '||applog-bd.muniao.com^$important'
+  - '||campus-2c-app.cn-hangzhou.log.aliyuncs.com^$important'
+  - '||crash.163.com^$important'
+  - '||dreport.meituan.net^$important'
+  - '||ichannel.snssdk.com^$important'
+  - '||logrcv.aiclk.com^$important'
+  - '||report.imtt.qq.com^$important'
+  - '||report.nfa.qq.com^$important'
+  - '||rpclusters.cn-beijing.log.aliyuncs.com^$important'
+  - '||sdk-ab-config.aiclk.com^$important'
+  - '||sdk-data.ubixioe.com^$important'
+  - '||sdklog.adintl.cn^$important'
+  - '||statistic.live.126.net^$important'
+  - '||tracelog-debug.aiclk.com^$important'
+  - '#以下为平台广告与推送接口域名'
+  - '||abtest3-misc-hl.zijieapi.com^$important'
+  - '||acs.m.taobao.com^$important'
+  - '||actfile.cdn.pandora.xiaomi.com^$important'
+  - '||ad.mcloud.139.com^$important'
+  - '||ad.us.sinaimg.cn^$important'
+  - '||leads.api.autohome.com.cn^$important'
+  - '||leads.autohome.com.cn^$important'
+  - '||marketing-thh.meituan.com^$important'
+  - '||marketing.waimai.meituan.com^$important'
+  - '||p*-ad.ad*kwai.com^$important'
+  - '||p*-ff.ad*kwai.com^$important'
+  - '||p*-lm.ad*kwai.com^$important'
+  - '||p*-yx.adkwai.com^$important'
+  - '||promotion.waimai.meituan.com^$important'
+  - '||tls-tmall-campus.dingtalk.com^$important'
+  - '||tnc*-alisc*.zijieapi.com^$important'
+  - '||tnc0-aliec2.zijieapi.com^$important'
+  - '||v4-lm.adukwai.com^$important'
   - '||_svcb.*^$important'
   - '#小米应用安装器的放行规则'
   - '@@||api.installer.xiaomi.com^$important'
@@ -1435,7 +1495,7 @@ filtering:
   safesearch_cache_size: 1048576
   parental_cache_size: 1048576
   cache_time: 30
-  filters_update_interval: 0
+  filters_update_interval: 24
   blocked_response_ttl: 30
   filtering_enabled: true
   rewrites_enabled: true

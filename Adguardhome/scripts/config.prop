@@ -1,6 +1,11 @@
-# 注：以下修改后必须重启生效
+# 注：redir_port 修改后需要重启生效；bypass 修改后最迟 5 秒生效
 # AdGuardHome DNS 重定向端口
 redir_port=5591
+
+# DNS 劫持总开关（直通模式）
+# 0=正常过滤；1=撤销全部 DNS 重定向与 DoT 拦截，系统改用网络下发的 DNS
+# 适用于必须使用指定 DNS 的 WiFi（认证热点、校园网、企业内网等）
+bypass=0
 
 # 代理订阅链接（在引号内填入你的订阅）
 PROXY_URL=" "

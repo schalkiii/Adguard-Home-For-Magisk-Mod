@@ -1,5 +1,6 @@
 #!/system/bin/sh
 AGH_DIR="/data/adb/agh"
+. "$AGH_DIR/scripts/config.prop"
 
 # 防止重复启动
 [ $(pgrep -f "$0" | wc -l) -gt 1 ] && exit
@@ -217,8 +218,11 @@ while :;do
 # 广告过滤核心函数
 [ -n "$e" ]&&lsattr -d $e|while read -r a p;do case "$a" in *i*)continue;;esac;[ -d "$p" ]&&(rm -rf "$p"&&mkdir -p "$p")&&chattr +i "$p"&&continue;[ -f "$p" ]&&> "$p"&&chattr +i "$p";done
 
-# 自动关闭私人DNS
-[ "$(settings get global private_dns_mode)" = "off" ] || settings put global private_dns_mode off
+# 自动关闭私人DNS（直通模式下交还控制权，由网络下发的DNS接管解析）
+case "$bypass" in 1*) bypass=1 ;; *) bypass=0 ;; esac
+if [ "$bypass" != "1" ]; then
+    [ "$(settings get global private_dns_mode)" = "off" ] || settings put global private_dns_mode off
+fi
 
 # 专清/data/data卸载残留
 for d in /data/data/*==deleted==;do [ -d "$d" ]&&chattr -R -i "$d"&&rm -rf "$d";done

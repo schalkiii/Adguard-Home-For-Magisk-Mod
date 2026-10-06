@@ -72,25 +72,42 @@ process_config() {
     return $?
 }
 
+# 还原全部代理配置中的DNS改动
+clean_all_configs() {
+    for entry in "${PROXY_CONFIGS[@]}"; do
+        IFS='|' read -r config_file _ <<< "$entry"
+        for config_file in $config_file; do
+            [ -f "$config_file" ] && clean_config "$config_file"
+        done
+    done
+}
+
 # 主函数
 i=0
+bypass_state=0
 while :; do
     . "$CONFIG_FILE"
+    # config.prop 若被带\r 的编辑器保存，订阅链接会带上\r 而匹配失败，这里做容错
+    PROXY_URL=$(printf '%s' "$PROXY_URL" | tr -d '\r\n')
+    case "$bypass" in 1*) bypass=1 ;; *) bypass=0 ;; esac
+    [ "$1" = "--clean" ] && { clean_all_configs; exit 0; }
+
+    # 直通模式下交还代理模块的DNS，避免代理仍指向未被劫持的AGH端口
+    if [ "$bypass" = "1" ]; then
+        [ "$bypass_state" = "1" ] || clean_all_configs
+        bypass_state=1
+        sleep 5
+        continue
+    fi
+    bypass_state=0
+
     IFS='|' read -r config_file restart_cmd <<< "${PROXY_CONFIGS[$i]}"
     need_restart=0
     for config_file in $config_file; do
         [ ! -f "$config_file" ] && continue
-        [ "$1" = "--clean" ] && clean_config "$config_file" && continue
         process_config "$config_file"
         [ $? -eq 0 ] && need_restart=1
     done
-    if [ "$1" = "--clean" ]; then
-        if [ $((i+1)) -eq ${#PROXY_CONFIGS[@]} ]; then
-            exit 0
-        fi
-        i=$((i+1))
-        continue
-    fi
     [ $need_restart -eq 1 ] && restart_service "$restart_cmd"
     i=$(( (i+1) % ${#PROXY_CONFIGS[@]} ))
     sleep 5

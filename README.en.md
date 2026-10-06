@@ -41,10 +41,26 @@
 ## 📖 Tutorial – Read Before Use
 - Disable or uninstall other ad-blocking modules, proxy tools, accessibility services, VPN ad blockers, browser ad blockers etc
 - If the ad cannot be blocked, clear all data for the app and try again.
-- Magisk users: Click the gear icon next to the module to access the Web UI manager
+- Magisk users: click the action button next to the module to **toggle bypass mode** (it does not open the Web UI); to open the Web UI just visit `http://127.0.0.1:3000`
+- The Web UI address is fixed at `http://127.0.0.1:3000` (the DNS redirection port is randomized, no need to care about it)
 - If using Clash Meta, disable system proxy in Network settings (tested and working)
+- Upstream DNS: by default the module forwards queries to a local smartdns instance (`127.0.0.1:1451`), so you need to deploy smartdns listening on that port; without it the built-in `fallback_dns` is used automatically (still DoH, but you lose smartdns routing and acceleration)
 - USTC Speedtest: [Jump to Tutorial](https://test.ustc.edu.cn)
 - Test if ad blocking is working properly (aim for ≥96%): [Jump to Tutorial](https://paileactivist.github.io/toolz/adblock.html)
+## 📶 Bypass Mode (for WiFi networks that require a specific DNS)
+Some public WiFi networks (captive portals, campus networks, corporate intranets) broadcast a designated DNS via DHCP, or require the device DNS to point at a specific server to complete authentication. The module's DNS redirection conflicts with them, causing broken resolution or an unreachable authentication page.
+- Enable (either way):
+  - Click the action button next to the module — it toggles bypass mode and prints the current state
+  - Or edit `/data/adb/agh/scripts/config.prop` and change `bypass=0` to `bypass=1`
+  - Both take effect within 5 seconds, no reboot needed
+- Scope: removes all port 53 redirections and 853 (DoT) blocks, and stops forcing Private DNS off; the system then uses the DNS broadcast by the network
+- The AGH process stays alive and the Web UI remains reachable at `http://127.0.0.1:3000`, but no DNS traffic is hijacked
+- When a proxy module is used, the DNS modifications made in its config are reverted during bypass so the proxy keeps an upstream
+- Disable: click the action button again, or change back to `bypass=0`; the daemon rebuilds the rules and refreshes the network (WiFi briefly disconnects)
+- Note: turning off "Protection" in the Web UI does NOT stop the DNS hijack. Switch `bypass` instead when changing networks
+- Every mode switch is recorded in `/data/adb/agh/agh.log`
+- After uninstalling the module, Private DNS is not restored automatically; adjust it in system settings if needed
+- If the action button prints "Daemon is not running", the daemon has exited and the switch will not apply automatically — reboot the device
 ## 🙏 Credits
 - [AdguardHome_magisk](https://github.com/410154425/AdGuardHome_magisk)
 - [akashaProxy](https://github.com/ModuleList/akashaProxy)

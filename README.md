@@ -17,7 +17,7 @@
 ```mermaid
 graph TD
     subgraph 独立管理器[独立管理器 - adguard-home-manager-mod]
-        M1[Flutter 应用<br>arm64-v8a] --> M2[自动读取 YAML<br>获取随机管理端口]
+        M1[Flutter 应用<br>arm64-v8a] --> M2[自动读取 YAML<br>获取 WebUI 端口 3000]
         M2 --> M3[使用 root/root 凭证<br>连接 AGH API]
         M3 --> M4[首页：全部保护开关<br>暂停时长选择]
         M3 --> M5[日志·统计·DNS配置]
@@ -40,7 +40,7 @@ graph TD
         S3 -->|有| S4[禁用模块并退出]
         S3 -->|无| S5{AGH进程是否已运行?}
         S5 -->|是（软重启）| S6[跳过初始化]
-        S5 -->|否（冷启动）| S7[随机化端口·修改配置]
+        S5 -->|否（冷启动）| S7[DNS端口随机化·同步config.prop]
         S7 --> S8[启动AGH]
         S8 --> S9{启动验证成功?}
         S9 -->|是| S10[记录启动成功]
@@ -54,13 +54,16 @@ graph TD
         DIR[<b>各自独立 每5秒循环</b>]
 
         D1["iptables.sh"]
-        D1 --> D1A[每轮重载 config.prop]
-        D1A --> D1B{检测 need_restart<br>（pgrep AGH）}
+            D1 --> D1A[每轮重载 config.prop<br>取得 bypass 与 redir_port]
+        D1A --> D1Z{bypass = 1 ?}
+        D1Z -->|是| D1H[clear_block：逐条循环删除<br>全部劫持规则与DoT拦截<br>AGH 进程保留·WebUI 仍可访问]
+        D1H --> D1G
+        D1Z -->|否| D1B{检测 need_restart<br>（pgrep AGH）}
         D1B -->|进程丢失| D1C[start_agh：写日志·启动AGH]
         D1B -->|进程正常| D1D[继续]
-        D1C --> D1E[检测 need_fix<br>（规则检查）]
+        D1C --> D1E[block_active：检测规则完整性]
         D1D --> D1E
-        D1E -->|规则异常| D1F[rebuild_rules：重建规则·刷新网络]
+        D1E -->|规则缺失| D1F[rebuild_rules：先循环清理<br>再重建规则·刷新网络]
         D1E -->|规则正常| D1G[sleep 5 回到循环]
         D1F --> D1G
         D1G --> D1
@@ -70,7 +73,7 @@ graph TD
         D2A --> D2B[检查锁定状态]
         D2B -->|未锁定| D2C[删除目录·重建并锁定]
         D2B -->|已锁定| D2D[跳过]
-        D2C --> D2E[强制关闭私人DNS]
+        D2C --> D2E[强制关闭私人DNS<br>bypass=1 时跳过]
         D2D --> D2E
         D2E --> D2F[sleep 5 回到循环]
         D2F --> D2
@@ -78,7 +81,7 @@ graph TD
         D3["ProxyConfig.sh"]
         D3 --> D3A[每轮重载 config.prop]
         D3A --> D3B[遍历代理配置文件]
-        D3B --> D3C[修改YAML DNS指向AGH]
+        D3B --> D3C[修改YAML DNS指向AGH<br>bypass=1 时还原为原始DNS]
         D3C --> D3D[重启代理服务·刷新网络]
         D3D --> D3E[sleep 5 回到循环]
         D3E --> D3
@@ -127,6 +130,7 @@ graph TD
 - 模块会导致优惠券无法正常领取，如无法正常领取这并非误杀
 - 部分软件的看广告领金币无法正常领取，如无法使用这并非误杀
 - 模块不可以与同类模块同时使用，更详细的请看教程那一栏
+- 模块默认会劫持全部 DNS 流量并强制关闭私人 DNS，接入需要指定 DNS 的 WiFi 前请先按「直通模式」关闭劫持
 - 模块无法拦截广告与内容为同一域名的，比如QQ、微信、支付宝等部分广告
 ## 💡 模块相比于其他的方案有哪些优点？
 ### 相比于非AdguardHome DNS实现方案有哪些优点？
@@ -158,13 +162,29 @@ graph TD
 ## 📖 教程，不看的话出事别到处找我问题
 - 一定要关闭或卸载其他广告拦截模块、无障碍跳过软件、VPN代理去广告、浏览器自带广告拦截等等
 - 遇到广告拦截不掉的话清除该应用的全部数据后重试
-- 如果你使用的是Magisk框架，那么点击模块旁边的操作按钮就可以进入Web UI管理器
+- 如果你使用的是Magisk框架，点击模块旁边的操作按钮即可**切换直通模式**（不会打开 Web UI），想打开 Web UI 请直接访问 `http://127.0.0.1:3000`
+- Web UI 地址固定为 `http://127.0.0.1:3000`（DNS 重定向端口为随机端口，无需关心）
 - 如果你有自己修改代理模块配置文件的癖好请不要用本模块，谢谢
 - 代理模块和代理软件不是同一个，是两个不同的概念
 - 代理软件教程：使用Chash Meta导致无法正常过滤的，可以去Chash Meta设置-网络中关闭系统代理
 - 代理模块教程：订阅链接只能填一个且在/data/adb/agh/scripts/config.prop中填入你的机场订阅保存重启即可自动兼容代理模块，剩下的交给模块自行处理就行
+- 上游 DNS 教程：模块默认把查询交给本地 smartdns（`127.0.0.1:1451`），需要自行部署 smartdns 并监听该端口；未部署时会自动改用内置的 `fallback_dns` 解析（仍为 DoH，但失去 smartdns 的分流与加速能力）
 - 中国科学大学测速网：[点击跳转](https://test.ustc.edu.cn)
 - 测试广告拦截是否正常（达到96%或以上是正常）：[点击跳转](https://paileactivist.github.io/toolz/adblock.html)
+## 📶 直通模式（必须使用指定 DNS 的 WiFi）
+有些公共WiFi（认证热点、校园网、企业内网等）会通过 DHCP 广播指定的 DNS，或要求设备的 DNS 指向特定服务器才能完成认证。此时模块的 DNS 重定向会与之冲突，表现为解析异常、认证页打不开。
+- 开启方式（二选一）：
+  - 点击模块旁边的**操作按钮**，按钮即为直通模式开关，每次点击在`关闭/开启`之间切换，并打印当前状态
+  - 用编辑器打开 `/data/adb/agh/scripts/config.prop`，把 `bypass=0` 改为 `bypass=1`
+  - 两种方式都最迟 5 秒生效，无需重启
+- 生效范围：撤销全部 53 端口重定向与 853（DoT）拦截，并停止强制关闭私人 DNS；系统随即改用网络下发的 DNS
+- AGH 进程与过滤能力保留，Web UI 仍可访问（`http://127.0.0.1:3000`），但不劫持任何 DNS 流量
+- 使用代理模块时，开启期间会自动还原代理配置中被改写的 DNS，避免代理失去上游
+- 关闭方式：再点一次操作按钮，或把 `bypass` 改回 `0`；守护脚本会重建规则并刷新网络（会短暂断开 WiFi）
+- 注意：在 Web UI 里关闭「保护」开关不会撤销 DNS 劫持，二者互不等价，切换网络时请改`bypass`
+- 查看当前状态：日志 `/data/adb/agh/agh.log` 会记录每次模式切换
+- 卸载模块后私人 DNS 不会自动恢复原设置，需要时请自行在系统设置里调整
+- 操作按钮的输出里如果出现「守护脚本未运行」，说明模块守护进程已退出，此时开关不会自动生效，请重启手机
 ## 💬 获取联系方式
 - 聊天闲聊群：[点击链接加入群聊](https://qun.qq.com/universal-share/share?ac=1&authKey=l2FNOfui75SDr9n8qTfNjibiF1aTpQ%2B0cmJrw7iKnj%2B95dyExNG5LrdCJu5%2FEKrQ&busi_data=eyJncm91cENvZGUiOiI3NDY2NDA0NjQiLCJ0b2tlbiI6ImhOUWgzVTFPYnRUcEw1ZEJ1TnhkOGI4b0ZQSFV6cmtuVkludk5EcDR4WTFXSU5PelVmdnZoUHIwOGEreHVnNEYiLCJ1aW4iOiIzMzEzODI0NTc1In0%3D&data=8QbRVdmvcvuIPhoaZYMQRNm8tdG9QvQ_d6dLJvGEW_XEOWLbexxs8SgTRPfW51Tpe7IGWAu3PpizEpFa9oO1LQ&svctype=4&tempid=h5_group_info)
 - 反馈测试组：[点击链接加入群聊](https://qun.qq.com/universal-share/share?ac=1&authKey=CnRMCNMYpq8urYWFDHU1Hr8cDAdDaVGHc6NQ4cyNJlYsaf2AGI14CAmwadmXpPjk&busi_data=eyJncm91cENvZGUiOiIyMTY3MDQ4MzI2IiwidG9rZW4iOiJTcjF1NENkZC9uNzMyMW52cnJITmdQRURQR25LOXkrWlV2d3BNbTNpdTl1dHk4M1ZVSUFYZDMwdGhaSU1JTE1sIiwidWluIjoiMzMxMzgyNDU3NSJ9&data=qW-Iwd_M-T4oba0swGdorSGKcUbyHUIRmYV8nVcUVA320bVl97MIQsLZpfxDc9zWSCZSVB2nsKmK-oLu96JB6Q&svctype=4&tempid=h5_group_info)
