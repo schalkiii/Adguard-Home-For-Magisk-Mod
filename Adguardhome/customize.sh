@@ -52,7 +52,17 @@ fi
 # 删除被锁定的残留文件
 [ -f "$AGH_DIR/scripts/NoAdsService.sh" ] && {
     i18n_print "- Removing locked residual files" "- 正在删除被锁定的残留文件"
-    local c=0 u=0 p;while IFS= read -r p;do [ -n "$p" ]&&[ -e "$p" ]&&while IFS= read -r f;do c=$((c+1));if [ -d "$f" ];then lsattr -d "$f" |grep -q "i-"&&{ chattr -i "$f";rmdir "$f"&&u=$((u+1));} else lsattr "$f" |grep -q "i-"&&{ chattr -i "$f";rm -f "$f";u=$((u+1));};fi;done< <(find "$p" \( -type f -o -type d \));done< <(grep 'block_ad' "$AGH_DIR/scripts/NoAdsService.sh"|grep -o '".*"'|tr -d '"')
+    c=0; u=0
+    BLOCK_LIST="$MODPATH/.block_list"
+    FILE_LIST="$MODPATH/.file_list"
+    grep 'block_ad' "$AGH_DIR/scripts/NoAdsService.sh"|grep -o '".*"'|tr -d '"' > "$BLOCK_LIST"
+    while IFS= read -r p;do
+        if [ -n "$p" ] && [ -e "$p" ];then
+            find "$p" \( -type f -o -type d \) > "$FILE_LIST"
+            while IFS= read -r f;do c=$((c+1));if [ -d "$f" ];then lsattr -d "$f" |grep -q "i-"&&{ chattr -i "$f";rmdir "$f"&&u=$((u+1));} else lsattr "$f" |grep -q "i-"&&{ chattr -i "$f";rm -f "$f";u=$((u+1));};fi;done < "$FILE_LIST"
+        fi
+    done < "$BLOCK_LIST"
+    rm -f "$BLOCK_LIST" "$FILE_LIST"
     i18n_print "- Removed $u locked files out of $c scanned items" "- 从 $c 个文件中删除了 $u 个锁定文件"
 }
 
