@@ -1,3 +1,0 @@
-# 将历史提交身份映射到当前维护者：git log / shortlog / GitHub 贡献统计均显示为 schalkiii
-# 不改写历史（提交 hash 不变、无需 force push），原始作者信息保留在提交对象中
-schalkiii <schalkiii@github.com> Herta <118590287+herta0426@users.noreply.github.com>
