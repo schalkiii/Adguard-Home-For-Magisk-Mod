@@ -2,7 +2,7 @@
 <a href="https://deepwiki.com/liuzq2002/Adguard-Home-For-Magisk-Mod"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 
  **简体中文** | [English](README.en.md)
-- 通过重定向过滤DNS请求+SNI阻断去告且带有模块系统的Root管理器通用
+- 通过重定向过滤 DNS 请求实现去广告，并带有模块系统的 Root 管理器通用
 - 本项目自己定制了一个魔改核心，现在已开源并可以点此链接进行访问[点击跳转](https://github.com/liuzq2002/AdguardHome-Mod)
 - 本项目永久开源免费无捐赠及其变种，不以是否捐赠来区分版本
 - 达到了开箱即用的易用性、操作失误自动恢复，刷入模块后按照教程稍微排查一下即可使用（无需配置规则）
@@ -10,7 +10,7 @@
 - 改包与Hosts共存或者去掉其他限制造成的问题别来找我（因为都是为了确保模块能够正常运行所设下的限制，去掉限制代表你能够自行解决问题那不要来找我）
 - 本项目旨在取代传统Hosts以带来更好的现代化体验——“零”广告侧漏、高性能、强隐蔽性
 - 发布了独立的管理器应用，需要的可以下载[点击跳转](https://github.com/liuzq2002/adguard-home-manager-mod)
-- 已经兼容了Surfing、Box、AkashaProxy、Clash MIX代理模块，其余的暂不兼容
+- 已经兼容了Box、Clash代理模块，其余的暂不兼容
 - 不看教程不要来找我反馈，点此链接直接跳转到教程：[点击跳转](https://github.com/liuzq2002/Adguard-Home-For-Magisk-Mod/tree/main?tab=readme-ov-file#-%E6%95%99%E7%A8%8B%E4%B8%8D%E7%9C%8B%E7%9A%84%E8%AF%9D%E5%87%BA%E4%BA%8B%E5%88%AB%E5%88%B0%E5%A4%84%E6%89%BE%E6%88%91%E9%97%AE%E9%A2%98)
 
 ## 模块架构设计图

@@ -105,5 +105,5 @@ find "$SCRIPT_DIR" -type f -name "*.sh" -exec chattr +i {} \;
 # 正在保留配置文件
 [ -f "$BACKUP_DIR/config.prop" ] && \
 old_line=$(grep -m1 '^PROXY_URL=' "$BACKUP_DIR/config.prop") && \
-[ -n "$old_line" ] && { sed -i "/^PROXY_URL=/d" "$SCRIPT_DIR/config.prop"; printf "%s" "$old_line" >> "$SCRIPT_DIR/config.prop"; i18n_print "- Preserved PROXY_URL from backup" "- 已从备份恢复 PROXY_URL"; }
+[ -n "$old_line" ] && { sed -i "/^PROXY_URL=/d" "$SCRIPT_DIR/config.prop"; printf "%s\n" "$old_line" >> "$SCRIPT_DIR/config.prop"; i18n_print "- Preserved PROXY_URL from backup" "- 已从备份恢复 PROXY_URL"; }
 i18n_print "- Installation complete. Reboot device." "- 安装完成，请重启设备。"
