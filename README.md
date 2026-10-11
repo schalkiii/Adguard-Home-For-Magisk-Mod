@@ -54,16 +54,16 @@ graph TD
         DIR[<b>各自独立 每5秒循环</b>]
 
         D1["iptables.sh"]
-            D1 --> D1A[每轮重载 config.prop<br>取得 bypass 与 redir_port]
+            D1 --> D1A[每轮重载 config.prop<br>取得 bypass·redir_port<br>与 upstream_uid/upstream_gid]
         D1A --> D1Z{bypass = 1 ?}
-        D1Z -->|是| D1H[clear_block：逐条循环删除<br>全部劫持规则与DoT拦截<br>AGH 进程保留·WebUI 仍可访问]
+        D1Z -->|是| D1H[clear_block：逐条循环删除<br>全部劫持规则·含旧版853与IPv6的DROP残留<br>AGH 进程保留·WebUI 仍可访问]
         D1H --> D1G
         D1Z -->|否| D1B{检测 need_restart<br>（pgrep AGH）}
         D1B -->|进程丢失| D1C[start_agh：写日志·启动AGH]
         D1B -->|进程正常| D1D[继续]
-        D1C --> D1E[block_active：检测规则完整性]
+        D1C --> D1E[block_active：检测规则完整性<br>上游豁免规则缺失同样触发重建]
         D1D --> D1E
-        D1E -->|规则缺失| D1F[rebuild_rules：先循环清理<br>再重建规则·刷新网络]
+        D1E -->|规则缺失| D1F[rebuild_rules：先循环清理<br>链首插入上游豁免·再重建规则·刷新网络]
         D1E -->|规则正常| D1G[sleep 5 回到循环]
         D1F --> D1G
         D1G --> D1
@@ -130,7 +130,7 @@ graph TD
 - 模块会导致优惠券无法正常领取，如无法正常领取这并非误杀
 - 部分软件的看广告领金币无法正常领取，如无法使用这并非误杀
 - 模块不可以与同类模块同时使用，更详细的请看教程那一栏
-- 模块默认会劫持全部 DNS 流量并强制关闭私人 DNS，接入需要指定 DNS 的 WiFi 前请先按「直通模式」关闭劫持
+- 模块默认会劫持所有走 53 端口的 DNS 流量（IPv4/IPv6）并强制关闭私人 DNS，接入需要指定 DNS 的 WiFi 前请先按「直通模式」关闭劫持
 - 模块无法拦截广告与内容为同一域名的，比如QQ、微信、支付宝等部分广告
 ## 💡 模块相比于其他的方案有哪些优点？
 ### 相比于非AdguardHome DNS实现方案有哪些优点？
@@ -168,16 +168,31 @@ graph TD
 - 代理模块和代理软件不是同一个，是两个不同的概念
 - 代理软件教程：使用Chash Meta导致无法正常过滤的，可以去Chash Meta设置-网络中关闭系统代理
 - 代理模块教程：订阅链接只能填一个且在/data/adb/agh/scripts/config.prop中填入你的机场订阅保存重启即可自动兼容代理模块，剩下的交给模块自行处理就行
-- 上游 DNS 教程：模块默认把查询交给本地 smartdns（`127.0.0.1:1451`），需要自行部署 smartdns 并监听该端口；未部署时会自动改用内置的 `fallback_dns` 解析（仍为 DoH，但失去 smartdns 的分流与加速能力）
+- 上游 DNS 教程：模块默认把查询交给本地 smartdns（`127.0.0.1:1451`），需要自行部署 smartdns 并监听该端口；未部署时会自动改用内置的 `fallback_dns` 解析（仍为 DoH，但失去 smartdns 的分流与加速能力）。smartdns 若使用 53 端口的上游，必须按下面「与本机上游解析器共存」配置属主，否则会和模块形成解析回环
 - 中国科学大学测速网：[点击跳转](https://test.ustc.edu.cn)
 - 测试广告拦截是否正常（达到96%或以上是正常）：[点击跳转](https://paileactivist.github.io/toolz/adblock.html)
+## 🔁 与本机上游解析器共存（SmartDNS 等）
+模块把 AGH 的上游指向本机解析器（默认 `127.0.0.1:1451`）时，解析器自己发出的查询也会被本模块的 53 端口重定向抓回 AGH，AGH 又转交给解析器，形成回环。
+- 现象特征：装好时一切正常，等解析器自己的缓存（`cache-persist`、`serve-expired`）过期后集中爆发解析失败，Web UI 里能看到同一域名反复查询不停
+- 触发点：`server 223.5.5.5 -b`、`server-tcp 223.5.5.5 -fallback` 这类上游用的就是 53 端口，正是被重定向的端口
+- 配置方法：编辑 `/data/adb/agh/scripts/config.prop`，填上解析器进程的属主
+  - 设备上取 PID：`pidof smartdns`，再看 `grep -E '^(Uid|Gid)' /proc/<PID>/status`
+  - 把 `upstream_uid`、`upstream_gid` 改成对应值；SmartDNS 模块以 `chpst -u 0:3004` 启动，因此是 `0` 和 `3004`
+  - 保存后最迟 5 秒生效，会刷新一次网络（WiFi 短暂断开重连）
+- 豁免会不会漏过滤：53 端口上不会。`owner` 匹配只比对进程主组，App 的 3004 属于附加组，App 的 53 端口查询照旧全部进 AGH
+- IPv6 的 53 现在同样重定向进 AGH（以前是整条 DROP，客户端只会干等到超时），所以 AGH 要一并监听 `::1`，配置里已经加好
+- 853（DoT/DoQ）从本版起完全不拦截：重定向过来的 DoT 过不了 TLS 证书校验，拦死又会让不回退的客户端表现为没网，两头都不讨好，索性放行
+- 代价要讲清楚：App 内置 DoT 或任何直连 853 的程序从此能绕过 AGH 不被过滤；系统级私人 DNS 仍由脚本强制关闭，常规 App 不受影响
+- DoH（443）和 HTTP/3（UDP 443）本来就拦不住，也不在本次改动范围内
+- 内核不带 owner 匹配模块时会自动放弃豁免，并在 `/data/adb/agh/agh.log` 写一条日志，此时请勿让解析器使用 53 端口上游
+- 不需要豁免时把 `upstream_gid` 留空即可（清空后要等规则重建或重启设备才生效）
 ## 📶 直通模式（必须使用指定 DNS 的 WiFi）
 有些公共WiFi（认证热点、校园网、企业内网等）会通过 DHCP 广播指定的 DNS，或要求设备的 DNS 指向特定服务器才能完成认证。此时模块的 DNS 重定向会与之冲突，表现为解析异常、认证页打不开。
 - 开启方式（二选一）：
   - 点击模块旁边的**操作按钮**，按钮即为直通模式开关，每次点击在`关闭/开启`之间切换，并打印当前状态
   - 用编辑器打开 `/data/adb/agh/scripts/config.prop`，把 `bypass=0` 改为 `bypass=1`
   - 两种方式都最迟 5 秒生效，无需重启
-- 生效范围：撤销全部 53 端口重定向与 853（DoT）拦截，并停止强制关闭私人 DNS；系统随即改用网络下发的 DNS
+- 生效范围：撤销全部 IPv4/IPv6 的 53 端口重定向，并停止强制关闭私人 DNS；系统随即改用网络下发的 DNS
 - AGH 进程与过滤能力保留，Web UI 仍可访问（`http://127.0.0.1:3000`），但不劫持任何 DNS 流量
 - 使用代理模块时，开启期间会自动还原代理配置中被改写的 DNS，避免代理失去上游
 - 关闭方式：再点一次操作按钮，或把 `bypass` 改回 `0`；守护脚本会重建规则并刷新网络（会短暂断开 WiFi）

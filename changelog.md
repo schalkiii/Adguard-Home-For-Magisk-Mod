@@ -21,3 +21,10 @@
 - 新增 .mailmap 将历史提交身份映射为当前维护者（后续已移除，当前仓库不含该文件，无需改写历史）
 - 新增 tools/pack_module.py 固化打包流程：自动转 LF、写入 Unix 权限位、校验必要条目与二进制 SHA256，
   并可用 mksh 逐个校验脚本语法。Windows 控制台若乱码先执行 chcp 65001
+- 修复与本机上游解析器（SmartDNS 等）形成解析回环：解析器发出的 53 端口上游查询被本模块重定向回 AGH，AGH 又转交解析器，缓存过期后集中爆发大面积解析失败。ADGUARD 链首新增 owner 豁免规则，config.prop 以 upstream_uid/upstream_gid 指定解析器进程属主，默认 0/3004（SmartDNS 模块以 chpst -u 0:3004 启动）
+- 853（DoT/DoQ）不再下任何拦截规则：重定向过来的 DoT 过不了 TLS 证书校验，整条 DROP 又会让不回退的客户端表现为长时间没网。这是有意的取舍——内置 DoT 的 App 从此可绕过 AGH，系统级私人 DNS 仍由脚本强制关闭
+- IPv6 的 53 由「整条 DROP」改为「重定向进 AGH」，nat 里为 IPv6 另建同名 ADGUARD 链；AGH 随之监听 ::1（bin/AdGuardHome.yaml 的 dns.bind_hosts 增加 ::1），否则重定向过去无人应答
+- clear_block 仍逐条清理旧版本的 853 与 IPv6:53 的 DROP 残留，卸载脚本同样兼容；block_active 改为只以 53 端口重定向判定劫持状态，不再把旧版 DROP 当作生效依据
+- 内核缺少 owner 匹配模块时自动放弃豁免并在 agh.log 记一条日志，且不再据此反复判定规则缺失，避免守护循环每 5 秒刷新一次网络
+- upstream_gid 留空即恢复旧行为（不做任何豁免），需等规则重建或重启后生效
+- 版本号升至 20261011

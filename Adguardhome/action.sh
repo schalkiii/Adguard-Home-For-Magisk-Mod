@@ -38,7 +38,7 @@ if [ "$lang" = "zh" ]; then
     else
         echo "当前状态：正常过滤（劫持DNS）"
         echo "操作结果：已开启直通模式"
-        echo "已撤销53端口重定向与853拦截，系统改用网络下发的DNS"
+        echo "已撤销IPv4/IPv6的53端口重定向，系统改用网络下发的DNS"
         echo "AGH进程与过滤能力保留，WebUI仍可访问：http://127.0.0.1:$PORT"
     fi
     echo "最迟5秒自动生效，无需重启"
@@ -56,7 +56,7 @@ else
     else
         echo "Current: normal filtering (DNS hijacked)"
         echo "Result: bypass mode enabled"
-        echo "Port 53 redirections and 853 blocks removed, the system will use the DNS broadcast by the network"
+        echo "IPv4/IPv6 port 53 redirections removed, the system will use the DNS broadcast by the network"
         echo "The AGH process stays alive and the WebUI remains reachable: http://127.0.0.1:$PORT"
     fi
     echo "Takes effect within 5 seconds, no reboot needed"

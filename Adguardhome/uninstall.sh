@@ -26,12 +26,16 @@ done
 while iptables -w 2 -t nat -C OUTPUT -j ADGUARD 2>/dev/null; do iptables -w 2 -t nat -D OUTPUT -j ADGUARD; done
 iptables -w 2 -t nat -F ADGUARD 2>/dev/null
 iptables -w 2 -t nat -X ADGUARD 2>/dev/null
-while ip6tables -w 2 -C OUTPUT -p udp --dport 53 -j DROP 2>/dev/null; do ip6tables -w 2 -D OUTPUT -p udp --dport 53 -j DROP; done
-while ip6tables -w 2 -C OUTPUT -p tcp --dport 53 -j DROP 2>/dev/null; do ip6tables -w 2 -D OUTPUT -p tcp --dport 53 -j DROP; done
+while ip6tables -w 2 -t nat -C OUTPUT -j ADGUARD 2>/dev/null; do ip6tables -w 2 -t nat -D OUTPUT -j ADGUARD; done
+ip6tables -w 2 -t nat -F ADGUARD 2>/dev/null
+ip6tables -w 2 -t nat -X ADGUARD 2>/dev/null
+# 旧版本在 filter 里 DROP 853 与 IPv6:53，本版不再下这些规则，卸载时把残留清干净
 while iptables -w 2 -C OUTPUT -p tcp --dport 853 -j DROP 2>/dev/null; do iptables -w 2 -D OUTPUT -p tcp --dport 853 -j DROP; done
 while iptables -w 2 -C OUTPUT -p udp --dport 853 -j DROP 2>/dev/null; do iptables -w 2 -D OUTPUT -p udp --dport 853 -j DROP; done
 while ip6tables -w 2 -C OUTPUT -p tcp --dport 853 -j DROP 2>/dev/null; do ip6tables -w 2 -D OUTPUT -p tcp --dport 853 -j DROP; done
 while ip6tables -w 2 -C OUTPUT -p udp --dport 853 -j DROP 2>/dev/null; do ip6tables -w 2 -D OUTPUT -p udp --dport 853 -j DROP; done
+while ip6tables -w 2 -C OUTPUT -p tcp --dport 53 -j DROP 2>/dev/null; do ip6tables -w 2 -D OUTPUT -p tcp --dport 53 -j DROP; done
+while ip6tables -w 2 -C OUTPUT -p udp --dport 53 -j DROP 2>/dev/null; do ip6tables -w 2 -D OUTPUT -p udp --dport 53 -j DROP; done
 
 # 解除锁定并删除残留文件
 grep 'block_ad' "$AGH_DIR/scripts/NoAdsService.sh"|grep -o '".*"'|tr -d '"'|while IFS= read -r p;do [ -n "$p" ]&&[ -e "$p" ]&&find "$p" \( -type f -o -type d \) |while IFS= read -r f;do if [ -d "$f" ];then lsattr -d "$f"|grep -q "i-"&&{ chattr -i "$f";rmdir "$f";};else lsattr "$f"|grep -q "i-"&&{ chattr -i "$f";rm -f "$f";};fi;done;done
