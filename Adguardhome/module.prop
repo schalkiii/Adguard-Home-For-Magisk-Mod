@@ -1,7 +1,7 @@
 id=AdGuardHome
 name=AdGuard Home For Android
-version=20261011
-versionCode=2026101100
+version=20261012
+versionCode=2026101200
 author=
 description=DNS层面过滤广告、防DNS劫持，WebUI端口固定3000，管理器页面点击操作按钮切换直通模式，不要私自更改内置规则和配置，账号和密码均为root
 updateJson=https://raw.githubusercontent.com/schalkiii/Adguard-Home-For-Magisk-Mod/main/Update.json

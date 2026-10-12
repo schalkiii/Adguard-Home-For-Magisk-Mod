@@ -29,6 +29,9 @@ iptables -w 2 -t nat -X ADGUARD 2>/dev/null
 while ip6tables -w 2 -t nat -C OUTPUT -j ADGUARD 2>/dev/null; do ip6tables -w 2 -t nat -D OUTPUT -j ADGUARD; done
 ip6tables -w 2 -t nat -F ADGUARD 2>/dev/null
 ip6tables -w 2 -t nat -X ADGUARD 2>/dev/null
+while ip6tables -w 2 -C OUTPUT -j AGUARD6 2>/dev/null; do ip6tables -w 2 -D OUTPUT -j AGUARD6; done
+ip6tables -w 2 -F AGUARD6 2>/dev/null
+ip6tables -w 2 -X AGUARD6 2>/dev/null
 # 旧版本在 filter 里 DROP 853 与 IPv6:53，本版不再下这些规则，卸载时把残留清干净
 while iptables -w 2 -C OUTPUT -p tcp --dport 853 -j DROP 2>/dev/null; do iptables -w 2 -D OUTPUT -p tcp --dport 853 -j DROP; done
 while iptables -w 2 -C OUTPUT -p udp --dport 853 -j DROP 2>/dev/null; do iptables -w 2 -D OUTPUT -p udp --dport 853 -j DROP; done

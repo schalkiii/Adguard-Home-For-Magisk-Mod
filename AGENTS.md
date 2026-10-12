@@ -27,16 +27,17 @@ Magisk / KernelSU 模块：把本机 DNS 流量用 iptables 重定向到 AdGuard
 - 豁免只允许 uid+gid 组合这种窄匹配，不要放宽成单 gid 或任意 root，否则等于放弃过滤
 - IPv6 的 53 改成重定向后，AGH 必须监听 `::1`（`bin/AdGuardHome.yaml` 的 `dns.bind_hosts`），否则查询被弹到 ::1 却无人应答
 - 853（DoT/DoQ）不再下任何规则：重定向过来的 DoT 过不了 TLS 证书校验，整条 DROP 又会让不回退的客户端表现为没网。内置 DoT 的 App 因此可以绕过 AGH，系统级私人 DNS 由脚本强制关闭来兜底
-- 内核不支持 IPv6 nat 时，v6 那几条静默失败；守护循环只检查 IPv4 的豁免与重定向，不会因此每轮误判成规则缺失
+- 内核没有 IPv6 nat 表时（HyperOS 实测如此）v6 无法重定向：必须退回 filter 链 `AGUARD6` 拦掉本机出向 53（链内先 `-m owner` 放行解析器，再 DROP），绝不允许"既不重定向也不拦截"——那样 IPv6 DNS 会整块绕过 AGH，表现为解析量骤降、过滤失效
 - `owner` 匹配只比对进程主组，App 的 3004（aid_inet）属附加组，因此豁免不会削弱对 App 的劫持与过滤
 - 端口分工：WebUI 固定 `3000`；DNS 重定向端口每次冷启动随机化并写回 `config.prop`
 - `bin/AdGuardHome` 是上游魔改核心，不入库（`.gitignore`），发版前需从 `liuzq2002/AdguardHome-Mod` release 取 `linux_arm64` 包
 
-## 当前状态（2026-10-11）
+## 当前状态（2026-10-12）
 - `bypass` 直通模式已落地（撤销 IPv4/IPv6 的 53 重定向 + 停止强制关私人 DNS），供必须使用指定 DNS 的 WiFi 使用
 - `action.sh` 已由"打开 WebUI"改为"切换 bypass"，打开 Web UI 需手动访问 `127.0.0.1:3000`
 - 上游解析器回环已修复：按 `upstream_uid`/`upstream_gid`（默认 `0`/`3004`，即 SmartDNS 模块 `chpst -u 0:3004` 的启动身份）在 v4/v6 两条 ADGUARD 链首放行，smartdns 的 `-b`/`-fallback` 明文上游不再被弹回 AGH
 - 拦截策略调整：853 完全放行（原先整条 DROP 会把不回退的客户端闷死），IPv6 的 53 由 DROP 改为重定向，AGH 随之监听 `::1`
+- 20261012 修掉上述改动的副作用：设备内核没有 IPv6 nat 表时 v6 重定向建不上，曾导致 IPv6 DNS 既不劫持也不拦截、整块绕过 AGH（用户实测解析量骤降）。现在这种情况退回 filter 链 `AGUARD6` 拦截 v6:53，链内保留解析器豁免
 
 ## 待办
 - 仓库不含 `AdGuardHome` 二进制（`bin/` 下只有 yaml 与过滤列表缓存），打包需从`liuzq2002/AdguardHome-Mod` 取 arm64 魔改核心

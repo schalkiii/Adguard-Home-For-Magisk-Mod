@@ -40,6 +40,25 @@ block_active() {
     return 1
 }
 
+# 内核有没有 IPv6 的 nat 表：不少设备（含 HyperOS）缺 nf_nat_ipv6，此时 v6 做不了重定向
+probe_v6_nat() {
+    ip6tables -w 2 -t nat -S >/dev/null 2>&1
+}
+
+# v6 重定向做不了时的兜底：filter 表独立链拦下本机出向的 53，并放行上游解析器
+# ACCEPT 写在自定义链里是终结裁决，包不会再回到 OUTPUT 撞后面那条 DROP，所以两条 ACCEPT 必须在前
+add_v6_block() {
+    ip6tables -w 2 -N AGUARD6 2>/dev/null
+    if [ "$owner_supported" = "1" ] && [ -n "$owner_match" ]; then
+        ip6tables -w 2 -A AGUARD6 -p udp --dport 53 $owner_match -j ACCEPT 2>/dev/null || return 1
+        ip6tables -w 2 -A AGUARD6 -p tcp --dport 53 $owner_match -j ACCEPT 2>/dev/null || return 1
+    fi
+    ip6tables -w 2 -A AGUARD6 -p udp --dport 53 -j DROP 2>/dev/null || return 1
+    ip6tables -w 2 -A AGUARD6 -p tcp --dport 53 -j DROP 2>/dev/null || return 1
+    ip6tables -w 2 -I OUTPUT -j AGUARD6 2>/dev/null || return 1
+    return 0
+}
+
 # 清除全部劫持规则
 # 规则写入用的是追加，历史上可能已堆积多条，因此逐条循环删除直到不存在
 clear_block() {
@@ -53,8 +72,14 @@ clear_block() {
     done
     ip6tables -w 2 -t nat -F ADGUARD 2>/dev/null
     ip6tables -w 2 -t nat -X ADGUARD 2>/dev/null
-    # 旧版本会 DROP 出向 853 与 IPv6:53，本版改为放行 853、IPv6 走重定向，
-    # 不清掉这些残留的话升级后 DoT 和 IPv6 解析仍然被闷死
+    while ip6tables -w 2 -C OUTPUT -j AGUARD6 2>/dev/null; do
+        ip6tables -w 2 -D OUTPUT -j AGUARD6 || break
+    done
+    ip6tables -w 2 -F AGUARD6 2>/dev/null
+    ip6tables -w 2 -X AGUARD6 2>/dev/null
+    # 旧版本会 DROP 出向 853 与 IPv6:53。853 一律清掉（本版不再拦）；
+    # IPv6:53 的裸 DROP 也清掉——兜底模式改由 AGUARD6 链来拦，链里带上游解析器豁免，
+    # 留着没豁免的旧规则会把 smartdns 的 IPv6 上游一起闷死
     while iptables -w 2 -C OUTPUT -p tcp --dport 853 -j DROP 2>/dev/null; do
         iptables -w 2 -D OUTPUT -p tcp --dport 853 -j DROP || break
     done
@@ -111,9 +136,14 @@ rebuild_rules() {
     clear_block
     iptables -w 2 -t nat -N ADGUARD
     iptables -w 2 -t nat -I OUTPUT -j ADGUARD
-    # IPv6 的 53 也重定向进 AGH，不再整条 DROP：闷掉之后 IPv6 DNS 客户端只会等超时
-    ip6tables -w 2 -t nat -N ADGUARD 2>/dev/null
-    ip6tables -w 2 -t nat -I OUTPUT -j ADGUARD 2>/dev/null
+    # IPv6 优先同样走重定向（闷掉只会让 v6 DNS 客户端干等超时）
+    v6_redirect=0
+    if probe_v6_nat; then
+        if ip6tables -w 2 -t nat -N ADGUARD 2>/dev/null; then
+            ip6tables -w 2 -t nat -I OUTPUT -j ADGUARD 2>/dev/null
+            v6_redirect=1
+        fi
+    fi
     # 上游豁免要在 REDIRECT 之前建立，插到链首
     if [ -n "$owner_match" ] && [ "$owner_supported" = "1" ]; then
         if ! add_exempt_rules; then
@@ -123,8 +153,33 @@ rebuild_rules() {
     fi
     iptables -w 2 -t nat -A ADGUARD -p udp --dport 53 -j REDIRECT --to-ports "$redir_port"
     iptables -w 2 -t nat -A ADGUARD -p tcp --dport 53 -j REDIRECT --to-ports "$redir_port"
-    ip6tables -w 2 -t nat -A ADGUARD -p udp --dport 53 -j REDIRECT --to-ports "$redir_port" 2>/dev/null
-    ip6tables -w 2 -t nat -A ADGUARD -p tcp --dport 53 -j REDIRECT --to-ports "$redir_port" 2>/dev/null
+    if [ "$v6_redirect" = "1" ]; then
+        if ip6tables -w 2 -t nat -A ADGUARD -p udp --dport 53 -j REDIRECT --to-ports "$redir_port" 2>/dev/null; then
+            ip6tables -w 2 -t nat -A ADGUARD -p tcp --dport 53 -j REDIRECT --to-ports "$redir_port" 2>/dev/null
+        else
+            v6_redirect=0
+        fi
+    fi
+    # 重定向建不起来的内核，宁可拦掉本机 v6:53 也不能裸放：
+    # 一旦既不过滤也不拦截，IPv6 DNS 就整块绕过 AGH，广告过滤和防劫持同时失效
+    v6_block=0
+    v6_now=redirect
+    if [ "$v6_redirect" != "1" ]; then
+        if add_v6_block; then
+            v6_block=1
+            v6_now=block
+        else
+            v6_now=none
+        fi
+    fi
+    # 只在方式变化时记日志，避免每次重建都往 agh.log 写一行
+    if [ "$v6_now" != "$v6_state" ]; then
+        case "$v6_now" in
+            block) echo "$(date '+%F %T') 内核无 IPv6 nat 表，已改为拦截本机 IPv6 的 53 端口查询（上游解析器除外）。" >> "$MAIN_LOG" ;;
+            none)  echo "$(date '+%F %T') IPv6 兜底拦截也没建起来，本机 IPv6 DNS 可能绕过 AGH。" >> "$MAIN_LOG" ;;
+        esac
+        v6_state="$v6_now"
+    fi
     # 853（DoT/DoQ）不再设卡：静默 DROP 会让不回退的客户端直接没网，
     # 重定向又过不了 TLS 证书校验，拦不住还添堵，所以干脆放行
 
@@ -137,6 +192,9 @@ rebuild_rules() {
 
 # 规则守护循环
 bypass_state=0
+# IPv6 当前采用的方式与兜底链状态，由 rebuild_rules 判定
+v6_block=0
+v6_state=
 while true; do
     . "$AGH_DIR/scripts/config.prop"
     # config.prop 若被带\r 的编辑器保存，直接使用会导致规则创建失败，这里做容错
@@ -164,6 +222,11 @@ while true; do
     # 豁免链可能被其他模块清空，而劫持规则仍在别处命中，需单独确认豁免没丢
     if [ -n "$owner_match" ] && [ "$owner_supported" = "1" ]; then
         exempt_active || need_fix=1
+    fi
+    # 走兜底拦截时，跳转或链内规则被清掉都要恢复，否则 IPv6 又变成裸放
+    if [ "$v6_block" = "1" ]; then
+        ip6tables -w 2 -C OUTPUT -j AGUARD6 2>/dev/null || need_fix=1
+        ip6tables -w 2 -C AGUARD6 -p udp --dport 53 -j DROP 2>/dev/null || need_fix=1
     fi
     [ $need_restart -eq 1 ] && start_agh
     [ $need_restart -eq 1 ] || [ $need_fix -eq 1 ] && rebuild_rules
